@@ -9,6 +9,9 @@ Splits is a front-end-only React MVP for splitting expenses around a single shar
 
 The app uses browser `localStorage` for auto-save, supports JSON export/import, and can generate shareable snapshot links by encoding the current activity into the URL.
 
+Release history is tracked in [`CHANGELOG.md`](./CHANGELOG.md).
+H5 layout spacing rules are tracked in [`H5_SPACING_GUIDELINES.md`](./H5_SPACING_GUIDELINES.md).
+
 ## Stack
 
 - React

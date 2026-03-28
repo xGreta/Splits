@@ -1,4 +1,4 @@
-import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
 import { getSavedLanguage, messages, saveLanguage } from './i18n'
 import type { Language } from './i18n'
 import type { Activity, Expense, Participant } from './types'
@@ -9,10 +9,8 @@ import {
   clearShareParamFromUrl,
   createEmptyActivity,
   describeEqualSplit,
-  downloadActivity,
   formatCurrency,
   getExpenseShare,
-  importActivity,
   loadSavedActivity,
   makeId,
   readSharedActivityFromUrl,
@@ -57,8 +55,6 @@ function App() {
   const [expenseErrors, setExpenseErrors] = useState<Partial<Record<'description' | 'amount' | 'payerId' | 'participantIds', string>>>({})
   const [shareUrl, setShareUrl] = useState('')
   const [shareMessage, setShareMessage] = useState('')
-  const [importMessage, setImportMessage] = useState('')
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const copy = messages[language]
 
   useEffect(() => {
@@ -68,6 +64,7 @@ function App() {
 
   useEffect(() => {
     saveLanguage(language)
+    document.documentElement.lang = language === 'zh' ? 'zh-CN' : 'en'
   }, [language])
 
   useEffect(() => {
@@ -228,24 +225,6 @@ function App() {
     }
   }
 
-  async function handleImport(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
-    if (!file) return
-
-    try {
-      const imported = await importActivity(file)
-      setActivity(imported)
-      setExpenseDraft(makeExpenseDraft(imported.participants))
-      setExpenseErrors({})
-      setImportMessage(copy.importedSuccess(imported.name || copy.untitledActivity))
-      setShareMessage('')
-    } catch {
-      setImportMessage(copy.importedFailure)
-    }
-
-    event.target.value = ''
-  }
-
   async function handleGenerateShareLink() {
     const url = buildShareUrl(activity)
     setShareUrl(url)
@@ -265,7 +244,6 @@ function App() {
     setParticipantError('')
     setShareUrl('')
     setShareMessage('')
-    setImportMessage('')
     setExpenseErrors({})
     setExpenseDraft(emptyExpenseDraft)
     saveActivity(fresh)
@@ -277,32 +255,53 @@ function App() {
       : 0
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${language === 'zh' ? 'lang-zh' : 'lang-en'}`}>
       <header className="hero">
-        <div>
+        <div className="hero-main">
           <p className="eyebrow">{copy.eyebrow}</p>
           <h1>{copy.heroTitle}</h1>
           <p className="hero-copy">{copy.heroCopy}</p>
-        </div>
-        <div className="hero-actions">
-          <label className="language-switch">
-            <span>{copy.languageLabel}</span>
-            <select value={language} onChange={(event) => setLanguage(event.target.value as Language)}>
-              <option value="en">{copy.languageEnglish}</option>
-              <option value="zh">{copy.languageChinese}</option>
-            </select>
-          </label>
-          <button className="secondary-button" onClick={handleStartOver} type="button">
-            {copy.startOver}
-          </button>
-          <button className="primary-button" onClick={() => downloadActivity(activity)} type="button">
-            {copy.exportJson}
-          </button>
+          <div className="hero-topbar">
+            <button
+              className="icon-pill language-icon-button"
+              type="button"
+              onClick={() => setLanguage(language === 'zh' ? 'en' : 'zh')}
+              aria-label={copy.languageLabel}
+              title={copy.languageLabel}
+            >
+              <span className="icon-pill-mark" aria-hidden="true">
+                文/A
+              </span>
+            </button>
+            <button className="small-secondary-button" onClick={handleStartOver} type="button">
+              {copy.startOver}
+            </button>
+          </div>
         </div>
       </header>
 
       <main className="layout">
-        <section className="panel">
+        <section className="panel panel-wide intro-panel">
+          <div className="section-header">
+            <h2>{copy.flowTitle}</h2>
+          </div>
+          <div className="flow-grid">
+            <article className="flow-card">
+              <h3>{copy.flowStepOneTitle}</h3>
+              <p>{copy.flowStepOneCopy}</p>
+            </article>
+            <article className="flow-card">
+              <h3>{copy.flowStepTwoTitle}</h3>
+              <p>{copy.flowStepTwoCopy}</p>
+            </article>
+            <article className="flow-card">
+              <h3>{copy.flowStepThreeTitle}</h3>
+              <p>{copy.flowStepThreeCopy}</p>
+            </article>
+          </div>
+        </section>
+
+        <section className="panel panel-wide">
           <div className="section-header">
             <h2>{copy.activitySetup}</h2>
             <span className="pill">{copy.participantsCount(activity.participants.length)}</span>
@@ -354,83 +353,107 @@ function App() {
                 <p>{copy.noParticipantsCopy}</p>
               </div>
             ) : (
-              activity.participants.map((participant) => (
-                <div className="participant-row" key={participant.id}>
-                  <input
-                    value={participant.name}
-                    onChange={(event) => handleParticipantRename(participant.id, event.target.value)}
-                    placeholder={copy.participantNamePlaceholder}
-                  />
-                  <button className="ghost-button" type="button" onClick={() => handleRemoveParticipant(participant.id)}>
-                    {copy.delete}
-                  </button>
-                </div>
-              ))
+              <div className="table-shell">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>{copy.participantTableName}</th>
+                      <th>{copy.participantTableStatus}</th>
+                      <th>{copy.participantTableActions}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {activity.participants.map((participant) => (
+                      <tr key={participant.id}>
+                        <td>
+                          <input
+                            value={participant.name}
+                            onChange={(event) => handleParticipantRename(participant.id, event.target.value)}
+                            placeholder={copy.participantNamePlaceholder}
+                          />
+                        </td>
+                        <td>
+                          <span className="table-badge">{copy.participantStatusReady}</span>
+                        </td>
+                        <td>
+                          <button className="ghost-button" type="button" onClick={() => handleRemoveParticipant(participant.id)}>
+                            {copy.delete}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </section>
 
-        <section className="panel">
+        <section className="panel panel-wide">
           <div className="section-header">
             <h2>{expenseDraft.id ? copy.editExpense : copy.addExpense}</h2>
             <span className="pill">{copy.expensesCount(activity.expenses.length)}</span>
           </div>
 
           <form className="expense-form" onSubmit={handleSubmitExpense}>
-            <label className="field">
-              <span>{copy.description}</span>
-              <input
-                placeholder={copy.descriptionPlaceholder}
-                value={expenseDraft.description}
-                onChange={(event) => setExpenseDraft((current) => ({ ...current, description: event.target.value }))}
-              />
-              {expenseErrors.description && <span className="inline-error">{expenseErrors.description}</span>}
-            </label>
+            <div className="form-grid">
+              <label className="field">
+                <span>{copy.description}</span>
+                <input
+                  placeholder={copy.descriptionPlaceholder}
+                  value={expenseDraft.description}
+                  onChange={(event) => setExpenseDraft((current) => ({ ...current, description: event.target.value }))}
+                />
+                {expenseErrors.description && <span className="inline-error">{expenseErrors.description}</span>}
+              </label>
 
-            <label className="field">
-              <span>{copy.amount}</span>
-              <input
-                inputMode="decimal"
-                min="0"
-                placeholder={copy.amountPlaceholder}
-                value={expenseDraft.amount}
-                onChange={(event) => setExpenseDraft((current) => ({ ...current, amount: event.target.value }))}
-              />
-              {expenseErrors.amount && <span className="inline-error">{expenseErrors.amount}</span>}
-            </label>
+              <label className="field">
+                <span>{copy.amount}</span>
+                <input
+                  inputMode="decimal"
+                  min="0"
+                  placeholder={copy.amountPlaceholder}
+                  value={expenseDraft.amount}
+                  onChange={(event) => setExpenseDraft((current) => ({ ...current, amount: event.target.value }))}
+                />
+                {expenseErrors.amount && <span className="inline-error">{expenseErrors.amount}</span>}
+              </label>
 
-            <label className="field">
-              <span>{copy.payer}</span>
-              <select
-                value={expenseDraft.payerId}
-                onChange={(event) => setExpenseDraft((current) => ({ ...current, payerId: event.target.value }))}
-                disabled={activity.participants.length === 0}
-              >
-                <option value="">{copy.selectPayer}</option>
-                {activity.participants.map((participant) => (
-                  <option key={participant.id} value={participant.id}>
-                    {participant.name || copy.unnamedParticipant}
-                  </option>
-                ))}
-              </select>
-              {expenseErrors.payerId && <span className="inline-error">{expenseErrors.payerId}</span>}
-            </label>
+              <label className="field">
+                <span>{copy.payer}</span>
+                <select
+                  value={expenseDraft.payerId}
+                  onChange={(event) => setExpenseDraft((current) => ({ ...current, payerId: event.target.value }))}
+                  disabled={activity.participants.length === 0}
+                >
+                  <option value="">{copy.selectPayer}</option>
+                  {activity.participants.map((participant) => (
+                    <option key={participant.id} value={participant.id}>
+                      {participant.name || copy.unnamedParticipant}
+                    </option>
+                  ))}
+                </select>
+                {expenseErrors.payerId && <span className="inline-error">{expenseErrors.payerId}</span>}
+              </label>
+            </div>
 
             <fieldset className="checkbox-group">
               <legend>{copy.shareQuestion}</legend>
               {activity.participants.length === 0 ? (
                 <p className="helper-text">{copy.addParticipantsFirst}</p>
               ) : (
-                activity.participants.map((participant) => (
-                  <label className="checkbox-row" key={participant.id}>
-                    <input
-                      type="checkbox"
-                      checked={expenseDraft.participantIds.includes(participant.id)}
-                      onChange={() => handleExpenseToggleParticipant(participant.id)}
-                    />
-                    <span>{participant.name || copy.unnamedParticipant}</span>
-                  </label>
-                ))
+                <div className="checkbox-grid">
+                  {activity.participants.map((participant) => (
+                    <label className="checkbox-row" key={participant.id}>
+                      <input
+                        type="checkbox"
+                        checked={expenseDraft.participantIds.includes(participant.id)}
+                        onChange={() => handleExpenseToggleParticipant(participant.id)}
+                      />
+                      <span>{participant.name || copy.unnamedParticipant}</span>
+                    </label>
+                  ))}
+                </div>
               )}
               {expenseErrors.participantIds && <span className="inline-error">{expenseErrors.participantIds}</span>}
             </fieldset>
@@ -467,38 +490,51 @@ function App() {
               <p>{copy.noExpensesCopy}</p>
             </div>
           ) : (
-            <div className="expense-list">
-              {activity.expenses.map((expense) => {
-                const payerName = participantMap.get(expense.payerId) ?? copy.unknownParticipant
-                const splitNames = expense.participantIds.map((participantId) => participantMap.get(participantId) ?? copy.unknownParticipant)
-                const shareDescription = describeEqualSplit(expense.amount, expense.participantIds.length, language)
+            <div className="table-shell">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>{copy.expenseTableDescription}</th>
+                    <th>{copy.expenseTableAmount}</th>
+                    <th>{copy.expenseTablePayer}</th>
+                    <th>{copy.expenseTableSharedBy}</th>
+                    <th>{copy.expenseTableShare}</th>
+                    <th>{copy.expenseTableActions}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activity.expenses.map((expense) => {
+                    const payerName = participantMap.get(expense.payerId) ?? copy.unknownParticipant
+                    const splitNames = expense.participantIds.map((participantId) => participantMap.get(participantId) ?? copy.unknownParticipant)
+                    const shareDescription = describeEqualSplit(expense.amount, expense.participantIds.length, language)
 
-                return (
-                  <article className="expense-card" key={expense.id}>
-                    <div className="expense-card-top">
-                      <div>
-                        <h3>{expense.description}</h3>
-                        <p className="expense-meta">{copy.paidBy(formatCurrency(expense.amount), payerName)}</p>
-                      </div>
-                      <div className="expense-actions">
-                        <button className="ghost-button" type="button" onClick={() => handleEditExpense(expense)}>
-                          {copy.edit}
-                        </button>
-                        <button className="ghost-button danger" type="button" onClick={() => handleDeleteExpense(expense.id)}>
-                          {copy.delete}
-                        </button>
-                      </div>
-                    </div>
-                    <p className="expense-meta">{copy.includedParticipants(splitNames.join(', '))}</p>
-                    <p className="expense-meta">{copy.equalShare(shareDescription)}</p>
-                  </article>
-                )
-              })}
+                    return (
+                      <tr key={expense.id}>
+                        <td>{expense.description}</td>
+                        <td>{formatCurrency(expense.amount)}</td>
+                        <td>{payerName}</td>
+                        <td>{splitNames.join('、')}</td>
+                        <td>{shareDescription}</td>
+                        <td>
+                          <div className="table-actions">
+                            <button className="ghost-button" type="button" onClick={() => handleEditExpense(expense)}>
+                              {copy.edit}
+                            </button>
+                            <button className="ghost-button danger" type="button" onClick={() => handleDeleteExpense(expense.id)}>
+                              {copy.delete}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </section>
 
-        <section className="panel">
+        <section className="panel panel-wide">
           <div className="section-header">
             <h2>{copy.summary}</h2>
             <span className="pill">{copy.paidVsOwed}</span>
@@ -509,25 +545,37 @@ function App() {
               <p>{copy.addParticipantsToSeeSummary}</p>
             </div>
           ) : (
-            <div className="summary-list">
-              {summaries.map((summary) => (
-                <div className="summary-row" key={summary.participantId}>
-                  <div>
-                    <h3>{summary.name}</h3>
-                    <p>{copy.paidAmount(formatCurrency(summary.paid))}</p>
-                    <p>{copy.owedAmount(formatCurrency(summary.owed))}</p>
-                  </div>
-                  <strong className={summary.net >= 0 ? 'positive' : 'negative'}>
-                    {summary.net >= 0 ? '+' : ''}
-                    {formatCurrency(summary.net)}
-                  </strong>
-                </div>
-              ))}
+            <div className="table-shell">
+              <table className="data-table summary-table">
+                <thead>
+                  <tr>
+                    <th>{copy.summaryTableParticipant}</th>
+                    <th>{copy.summaryTablePaid}</th>
+                    <th>{copy.summaryTableOwed}</th>
+                    <th>{copy.summaryTableNet}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {summaries.map((summary) => (
+                    <tr key={summary.participantId}>
+                      <td>{summary.name}</td>
+                      <td>{formatCurrency(summary.paid)}</td>
+                      <td>{formatCurrency(summary.owed)}</td>
+                      <td>
+                        <strong className={summary.net >= 0 ? 'positive' : 'negative'}>
+                          {summary.net >= 0 ? '+' : ''}
+                          {formatCurrency(summary.net)}
+                        </strong>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </section>
 
-        <section className="panel">
+        <section className="panel panel-wide">
           <div className="section-header">
             <h2>{copy.finalSettlement}</h2>
             <span className="pill">{copy.suggestedTransfers}</span>
@@ -557,21 +605,12 @@ function App() {
             <span className="pill">{copy.browserOnlySharing}</span>
           </div>
 
-          <div className="action-grid">
-            <button className="secondary-button" type="button" onClick={() => downloadActivity(activity)}>
-              {copy.downloadJson}
-            </button>
-            <button className="secondary-button" type="button" onClick={() => fileInputRef.current?.click()}>
-              {copy.importJson}
-            </button>
+          <div className="action-grid share-actions">
             <button className="primary-button" type="button" onClick={handleGenerateShareLink}>
               {copy.generateShareLink}
             </button>
           </div>
 
-          <input ref={fileInputRef} className="hidden-input" type="file" accept="application/json" onChange={handleImport} />
-
-          {importMessage && <p className="helper-text">{importMessage}</p>}
           {shareMessage && <p className="helper-text">{shareMessage}</p>}
 
           {shareUrl && (
