@@ -2,6 +2,17 @@
 
 All notable product-facing changes for Splits should be recorded in this file.
 
+## Unreleased
+
+### Updated
+
+- Switched production hosting from GitHub Pages to Vercel
+- Added the custom production domain `https://splits.greta-x.com/`
+- Configured `https://greta-x.com/` to redirect to the product subdomain
+- Added Vercel Analytics
+- Added Vercel Speed Insights
+- Updated project documentation to reflect the Vercel deployment and terminal release flow
+
 ## V101 - 2026-03-28
 
 Visual refinement release focused on typography and spacing consistency.
